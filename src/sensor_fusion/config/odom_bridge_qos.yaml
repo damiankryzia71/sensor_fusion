@@ -1,0 +1,9 @@
+odom_bridge:
+  ros__parameters:
+    qos_overrides:
+      /px4_odom:
+        publisher:
+          reliability: reliable
+          durability: volatile
+          history: keep_last
+          depth: 5
