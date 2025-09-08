@@ -18,61 +18,66 @@ typedef message_filters::sync_policies::ApproximateTime<PointCloud2, PointCloud2
 class PointCloudFusionNode : public rclcpp::Node {
 public:
   PointCloudFusionNode() : Node("pointcloud_fusion_node") {
-    this->declare_parameter<std::string>("input_topic1");
-    this->declare_parameter<std::string>("input_topic2");
-    this->declare_parameter<std::string>("output_topic");
-    this->declare_parameter<std::string>("tr_matrix_config_path");
+    declare_parameter<std::string>("input_topic1");
+    declare_parameter<std::string>("input_topic2");
+    declare_parameter<std::string>("output_topic");
+    declare_parameter<std::string>("tr_matrix_config_path");
+    declare_parameter<std::string>("output_frame_id");
 
-    if (!this->get_parameter("input_topic1", this->input_topic1_)) {
-        RCLCPP_ERROR(this->get_logger(), "Required parameter input_topic1 is missing. Aborting...");
+    if (!get_parameter("input_topic1", input_topic1_)) {
+        RCLCPP_ERROR(get_logger(), "Required parameter input_topic1 is missing. Aborting...");
         throw std::runtime_error("Runtime error");
     }
-    if (!this->get_parameter("input_topic2", this->input_topic2_)) {
-        RCLCPP_ERROR(this->get_logger(), "Required parameter input_topic2 is missing. Aborting...");
+    if (!get_parameter("input_topic2", input_topic2_)) {
+        RCLCPP_ERROR(get_logger(), "Required parameter input_topic2 is missing. Aborting...");
         throw std::runtime_error("Runtime error");
     }
-    if (!this->get_parameter("output_topic", this->output_topic_)) {
-        RCLCPP_ERROR(this->get_logger(), "Required parameter output_topic is missing. Aborting...");
+    if (!get_parameter("output_topic", output_topic_)) {
+        RCLCPP_ERROR(get_logger(), "Required parameter output_topic is missing. Aborting...");
         throw std::runtime_error("Runtime error");
     }
-    if (!this->get_parameter("tr_matrix_config_path", this->tr_matrix_config_path_)) {
-        RCLCPP_ERROR(this->get_logger(), "Required parameter tr_matrix_config_path is missing. Aborting...");
+    if (!get_parameter("tr_matrix_config_path", tr_matrix_config_path_)) {
+        RCLCPP_ERROR(get_logger(), "Required parameter tr_matrix_config_path is missing. Aborting...");
+        throw std::runtime_error("Runtime error");
+    }
+    if (!get_parameter("output_frame_id", output_frame_id_)) {
+        RCLCPP_ERROR(get_logger(), "Required parameter output_frame_id is missing. Aborting...");
         throw std::runtime_error("Runtime error");
     }
 
     try {
-        this->tr_ = parseTrMatrixFromYAML(this->tr_matrix_config_path_);
+        tr_ = parseTrMatrixFromYAML(tr_matrix_config_path_);
     }
     catch (const YAML::ParserException& e) {
-        RCLCPP_ERROR(this->get_logger(), "An error occured when parsing YAML file: %s", e.what());
+        RCLCPP_ERROR(get_logger(), "An error occured when parsing YAML file: %s", e.what());
         throw std::runtime_error("Runtime error");
     }
     catch (const YAML::BadFile& e) {
-        RCLCPP_ERROR(this->get_logger(), "Could not open YAML file: %s", e.what());
+        RCLCPP_ERROR(get_logger(), "Could not open YAML file: %s", e.what());
         throw std::runtime_error("Runtime error");
     }
     catch(const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "An error occured when parsing YAML file: %s", e.what());
+        RCLCPP_ERROR(get_logger(), "An error occured when parsing YAML file: %s", e.what());
         throw std::runtime_error("Runtime error");
     }
 
     rclcpp::SubscriptionOptions sub_opts1;
     rclcpp::SubscriptionOptions sub_opts2;
 
-    auto group = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+    auto group = create_callback_group(rclcpp::CallbackGroupType::Reentrant);
     sub_opts1.callback_group = group;
     sub_opts2.callback_group = group;
 
-    this->sub1_ = std::make_unique<message_filters::Subscriber<PointCloud2>>(this, this->input_topic1_, rclcpp::SensorDataQoS().get_rmw_qos_profile(), sub_opts1);
-    this->sub2_ = std::make_unique<message_filters::Subscriber<PointCloud2>>(this, this->input_topic2_, rclcpp::SensorDataQoS().get_rmw_qos_profile(), sub_opts2);
+    sub1_ = std::make_unique<message_filters::Subscriber<PointCloud2>>(this, input_topic1_, rclcpp::SensorDataQoS().get_rmw_qos_profile(), sub_opts1);
+    sub2_ = std::make_unique<message_filters::Subscriber<PointCloud2>>(this, input_topic2_, rclcpp::SensorDataQoS().get_rmw_qos_profile(), sub_opts2);
 
-    this->sync_ = std::make_unique<message_filters::Synchronizer<ApproxPolicy>>(ApproxPolicy(50), *(this->sub1_), *(this->sub2_));
-    this->sync_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(0.2));
-    this->sync_->registerCallback(std::bind(&PointCloudFusionNode::callback, this, std::placeholders::_1, std::placeholders::_2));
+    sync_ = std::make_unique<message_filters::Synchronizer<ApproxPolicy>>(ApproxPolicy(50), *(sub1_), *(sub2_));
+    sync_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(0.2));
+    sync_->registerCallback(std::bind(&PointCloudFusionNode::callback, this, std::placeholders::_1, std::placeholders::_2));
 
-    this->pub_ = this->create_publisher<PointCloud2>(this->output_topic_, rclcpp::SensorDataQoS());
+    pub_ = create_publisher<PointCloud2>(output_topic_, rclcpp::SensorDataQoS());
 
-    RCLCPP_INFO(this->get_logger(), "Publishing fused PointCloud2 to topic: %s", this->output_topic_.c_str());
+    RCLCPP_INFO(get_logger(), "Publishing fused PointCloud2 to topic: %s", output_topic_.c_str());
   }
 
 private:
@@ -85,7 +90,7 @@ private:
     pfused += pb_tr;
     PointCloud2 out;
     pcl::toROSMsg(pfused, out);
-    out.header.frame_id = "sensor_fusion";
+    out.header.frame_id = output_frame_id_;
     out.header.stamp = (rclcpp::Time(a->header.stamp) > rclcpp::Time(b->header.stamp)) ? a->header.stamp : b->header.stamp;
     pub_->publish(out);
   }
@@ -105,7 +110,7 @@ private:
     return tr;
   }
 
-  std::string input_topic1_, input_topic2_, output_topic_, tr_matrix_config_path_;
+  std::string input_topic1_, input_topic2_, output_topic_, tr_matrix_config_path_, output_frame_id_;
   Eigen::Matrix4f tr_;
   std::unique_ptr<message_filters::Subscriber<PointCloud2>> sub1_;
   std::unique_ptr<message_filters::Subscriber<PointCloud2>> sub2_;

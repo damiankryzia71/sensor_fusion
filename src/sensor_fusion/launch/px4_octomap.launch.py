@@ -13,6 +13,9 @@ def generate_launch_description():
         DeclareLaunchArgument("output_topic", default_value="/pcd_fused"),
         DeclareLaunchArgument("tr_matrix_config_path", default_value=PathJoinSubstitution([pkg_share, "config", "TR_identity.yaml"])),
         DeclareLaunchArgument("odom_topic", default_value="/px4_odom"),
+        DeclareLaunchArgument("output_frame_id", default_value="pcd_fused_frame"),
+        DeclareLaunchArgument("octomap_frame_id", default_value="x500_vision_0/odom"),
+        DeclareLaunchArgument("base_frame_id", default_value="x500_vision_0/base_footprint"),
 
         Node(
             package="ros_gz_bridge",
@@ -72,8 +75,56 @@ def generate_launch_description():
                     "input_topic1": LaunchConfiguration("input_topic1"),
                     "input_topic2": LaunchConfiguration("input_topic2"),
                     "output_topic": LaunchConfiguration("output_topic"),
-                    "tr_matrix_config_path": LaunchConfiguration("tr_matrix_config_path")
+                    "tr_matrix_config_path": LaunchConfiguration("tr_matrix_config_path"),
+                    "output_frame_id": LaunchConfiguration("output_frame_id")
                 }
+            ]
+        ),
+
+        Node(
+            package="sensor_fusion",
+            executable="odom_tf_node",
+            name="odom_tf_node",
+            output="screen",
+            parameters=[
+                {
+                    "odom_topic": LaunchConfiguration("odom_topic"),
+                    "parent_frame": LaunchConfiguration("octomap_frame_id"),
+                    "child_frame": LaunchConfiguration("base_frame_id")
+                }
+            ]
+        ),
+
+        Node(
+            package="tf2_ros",
+            executable="static_transform_publisher",
+            name="static_transform_publisher",
+            output="screen",
+            arguments=[
+                "0.12", "0.03", "0.242",
+                "0", "0", "0",
+                LaunchConfiguration("base_frame_id"),
+                LaunchConfiguration("output_frame_id")
+            ]
+        ),
+
+        Node(
+            package="octomap_server",
+            executable="octomap_server_node",
+            name="octomap_server_node",
+            output="screen",
+            parameters=[
+                {
+                    "frame_id": LaunchConfiguration("octomap_frame_id"),
+                    "base_frame_id": LaunchConfiguration("base_frame_id"),
+                    "resolution": 0.10,
+                    "max_range": 15.0,
+                    "publish_free_space": True,
+                    "filter_speckles": True
+                }
+            ],
+            remappings=[
+                ("cloud_in", LaunchConfiguration("output_topic"))
             ]
         )
     ])
