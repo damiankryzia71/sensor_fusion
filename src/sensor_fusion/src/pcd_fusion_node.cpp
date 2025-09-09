@@ -1,5 +1,6 @@
 #include <string>
 #include <memory>
+#include <vector>
 #include <yaml-cpp/yaml.h>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -10,6 +11,7 @@
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 #include <pcl/common/transforms.h>
+#include <pcl/filters/crop_box.h>
 #include <Eigen/Dense>
 
 using sensor_msgs::msg::PointCloud2;
@@ -61,6 +63,10 @@ public:
         throw std::runtime_error("Runtime error");
     }
 
+    self_filter_min_ = declare_parameter<std::vector<double>>("self_filter_min", {-0.5, -0.5, -0.1});
+    self_filter_max_ = declare_parameter<std::vector<double>>("self_filter_max", {0.5, 0.5, 0.5});
+    self_filter_offset_ = declare_parameter<std::vector<double>>("self_filter_offset", {0.0, 0.0, 0.0});
+
     rclcpp::SubscriptionOptions sub_opts1;
     rclcpp::SubscriptionOptions sub_opts2;
 
@@ -71,8 +77,7 @@ public:
     sub1_ = std::make_unique<message_filters::Subscriber<PointCloud2>>(this, input_topic1_, rclcpp::SensorDataQoS().get_rmw_qos_profile(), sub_opts1);
     sub2_ = std::make_unique<message_filters::Subscriber<PointCloud2>>(this, input_topic2_, rclcpp::SensorDataQoS().get_rmw_qos_profile(), sub_opts2);
 
-    sync_ = std::make_unique<message_filters::Synchronizer<ApproxPolicy>>(ApproxPolicy(50), *(sub1_), *(sub2_));
-    sync_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(0.2));
+    sync_ = std::make_unique<message_filters::Synchronizer<ApproxPolicy>>(ApproxPolicy(50), *sub1_, *sub2_);
     sync_->registerCallback(std::bind(&PointCloudFusionNode::callback, this, std::placeholders::_1, std::placeholders::_2));
 
     pub_ = create_publisher<PointCloud2>(output_topic_, rclcpp::SensorDataQoS());
@@ -92,7 +97,41 @@ private:
     pcl::toROSMsg(pfused, out);
     out.header.frame_id = output_frame_id_;
     out.header.stamp = (rclcpp::Time(a->header.stamp) > rclcpp::Time(b->header.stamp)) ? a->header.stamp : b->header.stamp;
+    applySelfFilter(out);
     pub_->publish(out);
+  }
+
+  void applySelfFilter(PointCloud2& msg) {
+    const auto header = msg.header;
+
+    if (self_filter_min_.size() != 3 || self_filter_max_.size() != 3 || self_filter_offset_.size() != 3) {
+      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000, "self_filter_* parameters must have 3 elements each; skipping self-filter.");
+      return;
+    }
+
+    pcl::PointCloud<pcl::PointXYZ> in, out;
+    pcl::fromROSMsg(msg, in);
+
+    Eigen::Vector4f min_pt(
+        static_cast<float>(self_filter_min_[0] + self_filter_offset_[0]),
+        static_cast<float>(self_filter_min_[1] + self_filter_offset_[1]),
+        static_cast<float>(self_filter_min_[2] + self_filter_offset_[2]),
+        1.0f);
+    Eigen::Vector4f max_pt(
+        static_cast<float>(self_filter_max_[0] + self_filter_offset_[0]),
+        static_cast<float>(self_filter_max_[1] + self_filter_offset_[1]),
+        static_cast<float>(self_filter_max_[2] + self_filter_offset_[2]),
+        1.0f);
+
+    pcl::CropBox<pcl::PointXYZ> crop;
+    crop.setInputCloud(in.makeShared());
+    crop.setMin(min_pt);
+    crop.setMax(max_pt);
+    crop.setNegative(true);
+    crop.filter(out);
+
+    pcl::toROSMsg(out, msg);
+    msg.header = header;
   }
 
   Eigen::Matrix4f parseTrMatrixFromYAML(const std::string& filepath) {
@@ -111,6 +150,7 @@ private:
   }
 
   std::string input_topic1_, input_topic2_, output_topic_, tr_matrix_config_path_, output_frame_id_;
+  std::vector<double> self_filter_min_, self_filter_max_, self_filter_offset_;
   Eigen::Matrix4f tr_;
   std::unique_ptr<message_filters::Subscriber<PointCloud2>> sub1_;
   std::unique_ptr<message_filters::Subscriber<PointCloud2>> sub2_;

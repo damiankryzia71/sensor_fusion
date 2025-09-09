@@ -39,13 +39,13 @@ def generate_launch_description():
             name="lidar_bridge",
             output="screen",
             arguments=[
-                "/world/baylands/model/x500_vision_0/link/lidar_link/sensor/lidar_3d_sensor/scan/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked"
+                "/world/walls/model/x500_vision_0/link/lidar_link/sensor/lidar_3d_sensor/scan/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked"
             ],
             parameters=[
                 PathJoinSubstitution([pkg_share, "config", "lidar_bridge_qos.yaml"])
             ],
             remappings=[
-                ("/world/baylands/model/x500_vision_0/link/lidar_link/sensor/lidar_3d_sensor/scan/points", LaunchConfiguration("input_topic2"))
+                ("/world/walls/model/x500_vision_0/link/lidar_link/sensor/lidar_3d_sensor/scan/points", LaunchConfiguration("input_topic2"))
             ]
         ),
 
