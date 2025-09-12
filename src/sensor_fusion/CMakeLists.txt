@@ -22,14 +22,24 @@ target_include_directories(pcd_fusion_node PRIVATE ${PCL_INCLUDE_DIRS} ${EIGEN3_
 target_link_libraries(pcd_fusion_node yaml-cpp ${PCL_LIBRARIES})
 ament_target_dependencies(pcd_fusion_node rclcpp sensor_msgs message_filters pcl_conversions)
 
+add_executable(fast_slow_pcd_fusion_node src/fast_slow_pcd_fusion_node.cpp)
+target_include_directories(fast_slow_pcd_fusion_node PRIVATE ${PCL_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
+target_link_libraries(fast_slow_pcd_fusion_node yaml-cpp ${PCL_LIBRARIES})
+ament_target_dependencies(fast_slow_pcd_fusion_node rclcpp sensor_msgs pcl_conversions)
+
 add_executable(odom_tf_node src/odom_tf_node.cpp)
 ament_target_dependencies(odom_tf_node rclcpp nav_msgs tf2_ros geometry_msgs)
 
-# TEST MAVROS FLIGHT
 add_executable(mavros_test_mission src/mavros_test_mission.cpp)
 ament_target_dependencies(mavros_test_mission rclcpp mavros_msgs geometry_msgs)
 
-install(TARGETS pcd_fusion_node odom_tf_node mavros_test_mission DESTINATION lib/${PROJECT_NAME})
+install(TARGETS 
+    pcd_fusion_node
+    fast_slow_pcd_fusion_node
+    odom_tf_node 
+    mavros_test_mission
+    DESTINATION lib/${PROJECT_NAME})
+
 install(DIRECTORY launch/ DESTINATION share/${PROJECT_NAME}/launch)
 install(DIRECTORY config/ DESTINATION share/${PROJECT_NAME}/config)
 

@@ -65,17 +65,33 @@ def generate_launch_description():
             ]
         ),
 
+        # Node(
+        #     package="sensor_fusion",
+        #     name="pcd_fusion_node",
+        #     executable="pcd_fusion_node",
+        #     output="screen",
+        #     parameters=[
+        #         {
+        #             "input_topic1": LaunchConfiguration("input_topic1"),
+        #             "input_topic2": LaunchConfiguration("input_topic2"),
+        #             "output_topic": LaunchConfiguration("output_topic"),
+        #             "tr_matrix_config_path": LaunchConfiguration("tr_matrix_config_path"),
+        #             "output_frame_id": LaunchConfiguration("output_frame_id")
+        #         }
+        #     ]
+        # ),
+
         Node(
             package="sensor_fusion",
-            name="pcd_fusion_node",
-            executable="pcd_fusion_node",
+            name="fast_slow_pcd_fusion_node",
+            executable="fast_slow_pcd_fusion_node",
             output="screen",
             parameters=[
                 {
-                    "input_topic1": LaunchConfiguration("input_topic1"),
-                    "input_topic2": LaunchConfiguration("input_topic2"),
-                    "output_topic": LaunchConfiguration("output_topic"),
-                    "tr_matrix_config_path": LaunchConfiguration("tr_matrix_config_path"),
+                    "fast_topic": LaunchConfiguration("input_topic1"),
+                    "slow_topic": LaunchConfiguration("input_topic2"),
+                    "fused_topic": LaunchConfiguration("output_topic"),
+                    "transform_yaml_path": LaunchConfiguration("tr_matrix_config_path"),
                     "output_frame_id": LaunchConfiguration("output_frame_id")
                 }
             ]
